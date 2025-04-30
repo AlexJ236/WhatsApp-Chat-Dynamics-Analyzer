@@ -1,0 +1,76 @@
+// netlify/functions/create-paypal-order.js
+const paypal = require('@paypal/checkout-server-sdk');
+
+// Configurar entorno PayPal (Sandbox o Live)
+const environment = () => {
+    let clientId = process.env.PAYPAL_CLIENT_ID;
+    let clientSecret = process.env.PAYPAL_CLIENT_SECRET;
+    // Usa Sandbox si PAYPAL_API_BASE contiene 'sandbox', si no, usa Live
+    if (process.env.PAYPAL_API_BASE && process.env.PAYPAL_API_BASE.includes('sandbox')) {
+         console.log('Using PayPal Sandbox Environment');
+         return new paypal.core.SandboxEnvironment(clientId, clientSecret);
+    } else {
+         console.log('Using PayPal Live Environment');
+         return new paypal.core.LiveEnvironment(clientId, clientSecret);
+    }
+};
+
+const paypalClient = new paypal.core.PayPalHttpClient(environment());
+
+exports.handler = async (event, context) => {
+    if (event.httpMethod !== 'POST') {
+        return { statusCode: 405, body: 'Method Not Allowed' };
+    }
+    
+    const price = process.env.PRICE_AMOUNT || '1.50'; // Precio ajustado a 1.50 USD
+    const productTitle = process.env.PRODUCT_TITLE || 'Análisis Premium de Chat';
+    const siteUrl = process.env.URL || process.env.SITE_URL;
+
+    // Crear la solicitud de orden
+    const request = new paypal.orders.OrdersCreateRequest();
+    request.prefer("return=representation");
+    request.requestBody({
+    intent: 'CAPTURE',
+    purchase_units: [{
+        description: productTitle,
+        amount: {
+            currency_code: 'USD', // Mantenemos USD para PayPal API
+            value: price // Usa la variable price (que será '1.50')
+        }
+    }],
+    
+    application_context: {
+            // URLs opcionales si no se maneja todo en onApprove
+            // return_url: `${siteUrl}/success.html`,
+            // cancel_url: `${siteUrl}/cancel.html`,
+            brand_name: 'Analizador de Chats',
+            landing_page: 'LOGIN', // O 'BILLING'
+            user_action: 'PAY_NOW',
+        }
+    });
+
+    try {
+        const order = await paypalClient.execute(request);
+        console.log('Orden PayPal creada:', order.result.id);
+        return {
+            statusCode: 200,
+            body: JSON.stringify({ orderID: order.result.id }), // Devuelve el ID de la orden
+        };
+    } catch (error) {
+        console.error('Error creando orden PayPal:', error.statusCode, error.message);
+         // Intentar obtener detalles del error si existen
+        let errorMessage = 'Error al crear la orden de pago.';
+        if (error.message) {
+             try {
+                  const errorDetails = JSON.parse(error.message);
+                  if (errorDetails.details && errorDetails.details.length > 0) {
+                       errorMessage += ` Detalles: <span class="math-inline">\{errorDetails\.details\[0\]\.issue\} \(</span>{errorDetails.details[0].description})`;
+                  }
+             } catch (e) { /* Ignorar error de parseo */ }
+        }
+        return {
+            statusCode: error.statusCode || 500,
+            body: JSON.stringify({ error: errorMessage }),
+        };
+    }
+};
