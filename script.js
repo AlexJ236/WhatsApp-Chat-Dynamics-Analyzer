@@ -5,15 +5,6 @@ let charts = {};
 let sentimentAnalyzer = null;
 let isLoadingModel = false;
 let currentAnalysisResults = {};
-let isPremiumUnlocked = false;
-
-// --- Elementos del DOM ---
-const paywallSection = document.getElementById('paywall-section');
-const analyzerSection = document.getElementById('analyzer-section');
-const paypalButtonContainer = document.getElementById('paypal-button-container');
-const paymentLoading = document.getElementById('payment-loading');
-const paymentError = document.getElementById('payment-error');
-const paymentSuccess = document.getElementById('payment-success');
 
 // --- Constantes y Keywords ---
 const AFFECTION_INDEX_MAX_FOR_100_PERCENT = 4;
@@ -40,37 +31,6 @@ console.log(`Regex Patterns Loaded (v${regexPatterns.length}):`, regexPatterns.m
 
 // --- Indicadores de Mensajes de Sistema ---
 const systemMessageIndicators = ["cifrado de extremo a extremo", "Los mensajes y las llamadas están cifrados", "Messages and calls are end-to-end encrypted","creó el grupo", "You created group", "añadió a", "You added","cambió el asunto", "changed the subject", "cambió el ícono", "changed this group's icon","saliste del grupo", "You left", "salió del grupo", "eliminó a", "removed","cambió tu código de seguridad", "changed your security code", "cambió su código de seguridad", "changed their security code","mensajes temporales", "disappearing messages", "activaron los mensajes temporales", "turned on disappearing messages", "desactivó los mensajes temporales", "turned off disappearing messages","llamada perdida", "Missed voice call", "videollamada perdida", "Missed video call", "Llamada,", "Videollamada,","uniste usando el enlace", "te uniste usando el enlace", "joined using this group's invite link", "You joined using this group's link","sticker omitido", "imagen omitida", "video omitido", "audio omitido", "documento omitido", "GIF omitido", "<Media omitted>","mensaje eliminado", "Eliminaste este mensaje", "This message was deleted","Bloqueaste a este contacto", "Desbloqueaste a este contacto", "You blocked this contact", "You unblocked this contact","Tap to change.","cambió a mensajes temporales", "se unió usando el enlace de invitación"];
-
-function showPaywall() {
-    // Re-obtener los elementos aquí o asegurarse de que son accesibles globalmente/en el scope
-    const paywallSection = document.getElementById('paywall-section');
-    const analyzerSection = document.getElementById('analyzer-section');
-
-    if (paywallSection) {
-        paywallSection.style.display = 'block'; // O 'flex' si usas flexbox para su layout interno
-    }
-    if (analyzerSection) {
-        analyzerSection.style.display = 'none';
-    }
-    console.log("Mostrando Paywall."); // Para depuración
-}
-
-/**
- * Oculta la sección de pago (paywall) y muestra la sección del analizador.
- */
-function showAnalyzer() {
-    // Re-obtener los elementos aquí o asegurarse de que son accesibles globalmente/en el scope
-    const paywallSection = document.getElementById('paywall-section');
-    const analyzerSection = document.getElementById('analyzer-section');
-
-    if (paywallSection) {
-        paywallSection.style.display = 'none';
-    }
-    if (analyzerSection) {
-        analyzerSection.style.display = 'block'; // O 'flex' si usas flexbox
-    }
-    console.log("Mostrando Analizador."); // Para depuración
-}
 
 // --- Helper para Actualizar Estado UI ---
 function updateStatus(text, isError = false) {
@@ -174,154 +134,6 @@ async function processChat(text) {
     }
 }
 
-function renderPayPalButtons() {
-    if (!paypal || !paypalButtonContainer) {
-        console.error("PayPal SDK no disponible o contenedor no encontrado.");
-        if (paymentError) paymentError.textContent = "Error al cargar botones de pago.";
-        if (paymentError) paymentError.style.display = 'block';
-        return;
-    }
-
-    if (paymentLoading) paymentLoading.style.display = 'block';
-    if (paymentError) paymentError.style.display = 'none';
-    paypalButtonContainer.innerHTML = ''; // Limpiar por si acaso
-
-    paypal.Buttons({
-        // --- 1. createOrder: Llama a tu backend para crear la orden ---
-        createOrder: async (data, actions) => {
-            console.log("createOrder iniciado...");
-            if (paymentLoading) paymentLoading.style.display = 'block'; // Mostrar loading aquí también
-             if (paymentError) paymentError.style.display = 'none';
-            try {
-                const response = await fetch('/.netlify/functions/create-paypal-order', {
-                    method: 'POST',
-                });
-                const orderData = await response.json();
-
-                if (!response.ok || orderData.error) {
-                    throw new Error(orderData.error || `Error del servidor: ${response.statusText}`);
-                }
-
-                console.log("Orden creada, ID:", orderData.orderID);
-                 if (paymentLoading) paymentLoading.style.display = 'none';
-                return orderData.orderID; // Devuelve el ID de la orden al SDK de PayPal
-
-            } catch (error) {
-                console.error("Error en createOrder:", error);
-                if (paymentLoading) paymentLoading.style.display = 'none';
-                if (paymentError) paymentError.textContent = `Error al crear orden: ${error.message}`;
-                if (paymentError) paymentError.style.display = 'block';
-                // Opcional: actions.reject(); para detener el flujo de PayPal
-                return null; // Indicar fallo
-            }
-        },
-
-        // --- 2. onApprove: Se ejecuta cuando el usuario aprueba en PayPal ---
-        onApprove: async (data, actions) => {
-            console.log("onApprove iniciado, Order ID:", data.orderID);
-            if (paymentLoading) paymentLoading.textContent = 'Procesando pago...';
-            if (paymentLoading) paymentLoading.style.display = 'block';
-            if (paymentError) paymentError.style.display = 'none';
-            if (paymentSuccess) paymentSuccess.style.display = 'none';
-             // Deshabilitar botones mientras se procesa
-            document.querySelectorAll('#paypal-button-container button').forEach(btn => btn.disabled = true);
-
-
-            try {
-                // Llama a tu backend para capturar el pago
-                const response = await fetch('/.netlify/functions/capture-paypal-order', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ orderID: data.orderID }) // Envía el orderID al backend
-                });
-
-                const captureData = await response.json();
-
-                if (!response.ok || !captureData.success) {
-                     // Intentar obtener un mensaje de error más específico si es posible
-                     let errorMsg = captureData.error || 'El servidor no pudo capturar el pago.';
-                     if (captureData.status && captureData.status !== 'COMPLETED') {
-                          errorMsg += ` Estado: ${captureData.status}`;
-                     }
-                    throw new Error(errorMsg);
-                }
-
-                // ¡ÉXITO EN LA CAPTURA!
-                console.log("Captura exitosa:", captureData);
-                isPremiumUnlocked = true;
-                localStorage.setItem('premiumAccess', 'true'); // Guarda el estado
-                if (paymentLoading) paymentLoading.style.display = 'none';
-                if (paymentSuccess) paymentSuccess.style.display = 'block';
-
-                // Esperar un poquito para mostrar mensaje y luego mostrar analizador
-                setTimeout(() => {
-                   showAnalyzer();
-                   if (paymentSuccess) paymentSuccess.style.display = 'none'; // Ocultar mensaje de éxito
-                }, 1500); // Espera 1.5 segundos
-
-
-            } catch (error) {
-                console.error("Error en onApprove (captura):", error);
-                if (paymentLoading) paymentLoading.style.display = 'none';
-                if (paymentError) paymentError.textContent = `Error al procesar pago: ${error.message}`;
-                if (paymentError) paymentError.style.display = 'block';
-                 // Habilitar botones de nuevo si falla
-                document.querySelectorAll('#paypal-button-container button').forEach(btn => btn.disabled = false);
-                // Opcional: actions.restart(); para permitir al usuario reintentar
-            }
-        },
-
-        // --- 3. onError: Maneja errores en el flujo de PayPal (ej: ventana emergente bloqueada) ---
-        onError: (err) => {
-            console.error("Error en el flujo de PayPal:", err);
-            if (paymentLoading) paymentLoading.style.display = 'none';
-            if (paymentError) paymentError.textContent = "Ocurrió un error con PayPal. Por favor, intenta de nuevo.";
-            if (paymentError) paymentError.style.display = 'block';
-             // Habilitar botones de nuevo si falla
-             document.querySelectorAll('#paypal-button-container button').forEach(btn => btn.disabled = false);
-        },
-
-         // --- 4. onCancel: Opcional, si el usuario cierra la ventana de PayPal ---
-         onCancel: (data) => {
-            console.log("Pago cancelado por el usuario. Order ID:", data.orderID);
-            if (paymentLoading) paymentLoading.style.display = 'none';
-             // Habilitar botones de nuevo
-             document.querySelectorAll('#paypal-button-container button').forEach(btn => btn.disabled = false);
-         }
-
-    }).render('#paypal-button-container').catch(err => {
-        console.error("Error renderizando botones PayPal:", err);
-        if (paymentLoading) paymentLoading.style.display = 'none';
-        if (paymentError) paymentError.textContent = "No se pudieron mostrar los botones de pago.";
-        if (paymentError) paymentError.style.display = 'block';
-    }); // Renderiza los botones en el div especificado
-}
-
-// --- Lógica Principal de Inicialización y Acceso (Adaptada) ---
-document.addEventListener('DOMContentLoaded', () => {
-    if (localStorage.getItem('premiumAccess') === 'true') {
-        isPremiumUnlocked = true;
-        showAnalyzer();
-    } else {
-        isPremiumUnlocked = false;
-        showPaywall();
-        // Renderizar botones PayPal solo si el SDK está cargado
-        if (typeof paypal !== 'undefined') {
-           renderPayPalButtons();
-        } else {
-            console.error("PayPal SDK no está cargado.");
-             if (paymentError) paymentError.textContent = "No se pudo cargar el sistema de pago.";
-             if (paymentError) paymentError.style.display = 'block';
-        }
-    }
-
-    // ... (resto de tu código DOMContentLoaded y listeners para fileInput, etc.)
-    const fileInput = document.getElementById('chatfile');
-     if (fileInput) fileInput.addEventListener('change', handleFileSelect); // Tu función existente debe verificar isPremiumUnlocked
-     // ...
-});
 
 // --- Sub-función: Parsear Líneas del Chat (v5.2 - Múltiples Regex) ---
 function parseChatLines(text) {

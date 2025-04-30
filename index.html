@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador de Chats v3.0 (Premium)</title>
+    <title>Analizador de Chats de WhatsApp v2.7 (Layout 3 Col)</title>
     <link rel="stylesheet" href="style.css">
-    <script src="https://www.paypal.com/sdk/js?client-id=Ad5TXpkGb7YZ7w0wFeTfouqbTydBaBLF_6rcETEuTiUtCmMbcGCg9IOlnCQ39jDSCFWemcasK8DjgKvT&currency=USD&intent=capture"></script>
-
-</head>
+    </head>
 <body>
     <header>
         <h1>Analizador de Dinámicas de Chat</h1>
@@ -15,100 +13,70 @@
     </header>
 
     <main>
-        <section id="paywall-section">
-            <h2>Desbloquear Análisis Premium</h2>
-            <p>Obtén acceso completo al análisis detallado de tus chats, incluyendo métricas avanzadas, análisis de sentimiento por IA, índice de expresión afectiva, patrones de comunicación y más.</p>
-            <p><strong>Precio: 1.5 USD (Pago Único)</strong></p>
-            <p>Tu pago es procesado de forma segura a través de PayPal. No se almacenan datos personales ni información de pago.</p>
-            <p>Al hacer clic en "Pagar con PayPal", serás redirigido a la página de pago de PayPal. Una vez completado el pago, recibirás un correo electrónico de confirmación y podrás acceder al análisis.</p>
-            <div id="paypal-button-container" style="margin-top: 1.5rem; max-width: 400px; margin-left: auto; margin-right: auto;">
-                </div>
-
-            <p id="payment-loading" style="display: none; margin-top: 1rem; color: var(--elegant-light-text);">Cargando opciones de pago...</p>
-            <p id="payment-error" style="display: none; margin-top: 1rem; color: var(--negative-color-text); font-weight: bold;"></p>
-            <p id="payment-success" style="display: none; margin-top: 1rem; color: var(--positive-color-text); font-weight: bold;">¡Pago completado! Desbloqueando análisis...</p>
+        <section id="upload-section">
+            <h2>1. Sube tu archivo de chat (.txt)</h2>
+            <p>Tu archivo se procesa <strong>localmente</strong> en tu navegador. No se sube a ningún servidor.</p>
+            <input type="file" id="chatfile" accept=".txt" style="display: none;">
+            <label for="chatfile" class="file-upload-label">Seleccionar Archivo</label>
+            <p id="file-chosen" class="file-chosen-text"></p>
         </section>
 
-        <section id="analyzer-section" style="display: none;">
+        <p id="loading-status" class="loading-status">Esperando archivo...</p>
 
-            <section id="upload-section">
-                <h2>1. Sube tu archivo de chat (.txt)</h2>
-                <p>Tu archivo se procesa <strong>localmente</strong> en tu navegador.</p>
-                <input type="file" id="chatfile" accept=".txt" style="display: none;">
-                <label for="chatfile" class="file-upload-label">Seleccionar Archivo</label>
-                <p id="file-chosen" class="file-chosen-text"></p>
+        <hr class="divider">
+
+        <div id="report-container" style="display: none;">
+            <section id="results-section">
+                <h2>Análisis del Chat</h2>
+                <div class="results-columns-container">
+                    <div class="results-column" id="column-left">
+                         <div class="results-block" id="summary">
+                              <h4>Resumen General</h4>
+                              <div id="summary-cards-container"></div>
+                         </div>
+                    </div>
+                    <div class="results-column" id="column-middle">
+                         <div class="results-block">
+                              <h4>Distribución de Mensajes (%)</h4>
+                              <div class="chart-container participation-chart"><canvas id="participation-chart"></canvas></div>
+                         </div>
+                         <div class="results-block">
+                              <h4>Actividad del Chat por Día</h4>
+                              <div class="chart-container timeline-chart"><canvas id="timeline-chart"></canvas></div>
+                         </div>
+                         <div class="results-block">
+                              <h4>Índice de Expresión Afectiva (Estimado)</h4>
+                              <div id="affection-bars-container"></div>
+                         </div>
+                    </div>
+                    <div class="results-column" id="column-right">
+                         <div class="patterns-container">
+                              <div class="results-block green patterns-block">
+                                   <h4><span class="icon" aria-hidden="true">✓</span>Patrones Positivos Observados</h4>
+                                   <ul id="positive-patterns-list"></ul>
+                              </div>
+                              <div class="results-block red patterns-block">
+                                   <h4><span class="icon" aria-hidden="true">!</span>Patrones para Reflexión</h4>
+                                   <ul id="attention-patterns-list"></ul>
+                              </div>
+                         </div>
+                    </div>
+                </div>
+                <div class="results-block interpretation-summary">
+                    <h4>Interpretación General</h4>
+                    <div id="compatibility-summary"></div>
+                    <p class="disclaimer">
+                          <strong>Importante:</strong> Este análisis se basa únicamente en patrones textuales y métricas cuantitativas del chat exportado... (etc.)
+                     </p>
+                </div>
             </section>
 
-            <p id="loading-status" class="loading-status">Esperando archivo...</p>
-
-            <hr class="divider">
-
-            <div id="report-container" style="display: none;">
-
-                <section id="results-section">
-                    <h2>Análisis del Chat</h2>
-
-                    <div class="results-columns-container">
-
-                        <div class="results-column" id="column-left">
-                            <div class="results-block" id="summary">
-                                <h4>Resumen General</h4>
-                                <div id="summary-cards-container">
-                                    </div>
-                            </div>
-                        </div><div class="results-column" id="column-middle">
-                            <div class="results-block">
-                                <h4>Distribución de Mensajes (%)</h4>
-                                <div class="chart-container participation-chart">
-                                    <canvas id="participation-chart"></canvas>
-                                </div>
-                            </div>
-                            <div class="results-block">
-                                <h4>Actividad del Chat por Día</h4>
-                                <div class="chart-container timeline-chart">
-                                    <canvas id="timeline-chart"></canvas>
-                                </div>
-                            </div>
-                            <div class="results-block">
-                                <h4>Índice de Expresión Afectiva (Estimado)</h4>
-                                <div id="affection-bars-container">
-                                    </div>
-                            </div>
-                        </div><div class="results-column" id="column-right">
-                            <div class="patterns-container">
-                                <div class="results-block green patterns-block">
-                                    <h4><span class="icon" aria-hidden="true">✓</span>Patrones Positivos Observados</h4>
-                                    <ul id="positive-patterns-list">
-                                        </ul>
-                                </div>
-                                <div class="results-block red patterns-block">
-                                    <h4><span class="icon" aria-hidden="true">!</span>Patrones para Reflexión</h4>
-                                    <ul id="attention-patterns-list">
-                                        </ul>
-                                </div>
-                            </div>
-                        </div></div> <div class="results-block interpretation-summary">
-                         <h4>Interpretación General</h4>
-                         <div id="compatibility-summary"> </div>
-                         <p class="disclaimer">
-                              <strong>¡Muy Importante! Interpretación y Limitaciones:</strong> Este análisis se basa <strong>únicamente</strong> en patrones textuales y métricas cuantitativas del chat. Es una <strong>estimación</strong> y <strong>NO</strong> puede capturar:
-                              <ul>
-                                   <li>El contexto completo de la relación o conversación.</li>
-                                   <li>Tono de voz, lenguaje corporal o comunicación no verbal.</li>
-                                   <li>Sarcasmo, ironía o dobles sentidos complejos.</li>
-                                   <li>Factores externos o historia compartida entre los participantes.</li>
-                              </ul>
-                              La IA de sentimiento tiene limitaciones y posibles sesgos. Usa esta herramienta como un punto de partida para la <strong>reflexión personal</strong>, no como un juicio definitivo sobre la relación o las personas.
-                          </p>
-                    </div>
-
-                </section> <section id="download-report">
-                    <h3>Exportar Informe</h3>
-                    <p>Guarda una imagen del análisis completo.</p>
-                    <button id="image-button" disabled>Descargar como Imagen (PNG)</button>
-                </section>
-
-            </div> </section> </main>
+            <section id="download-report">
+                 <h3>Exportar Informe</h3>
+                 <p>Guarda una imagen del análisis completo.</p>
+                 <button id="image-button" disabled>Descargar como Imagen (PNG)</button>
+            </section>
+        </div> </main>
 
     <footer>
         <p>Herramienta de análisis local y privada. Creada con fines informativos.</p>
