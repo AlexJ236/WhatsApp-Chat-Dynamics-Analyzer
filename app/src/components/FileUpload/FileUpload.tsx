@@ -1,14 +1,15 @@
 import React, { useState, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { readTextFile } from '../../services/fileReaderService';
+import { readChatFile } from '../../services/fileReaderService';
 
 interface FileUploadProps {
   onFileSuccessfullyProcessed: (chatText: string, fileName: string) => void;
+  // isLoadingGlobal?: boolean;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSuccessfullyProcessed }) => {
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>('Esperando archivo...');
+  const [statusMessage, setStatusMessage] = useState<string>('Esperando archivo .txt o .zip...');
   const [isReading, setIsReading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -24,14 +25,15 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSuccessfullyProcessed }) 
       setIsReading(true);
 
       try {
-        const fileContent = await readTextFile(file);
-        setStatusMessage(`Archivo "${file.name}" cargado. Listo para analizar.`);
+        // Use the new service function that handles both .txt and .zip
+        const fileContent = await readChatFile(file); 
+        setStatusMessage(`Archivo "${file.name}" cargado y procesado. Listo para analizar.`);
         onFileSuccessfullyProcessed(fileContent, file.name);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Ocurrió un error desconocido al leer el archivo.';
-        console.error('[FileUpload] Error reading file:', error);
+        console.error('[FileUpload] Error reading/processing file:', error);
         setErrorMessage(`Error: ${message}`);
-        setStatusMessage('Error al leer el archivo. Intenta de nuevo.');
+        setStatusMessage('Error al leer o procesar el archivo. Intenta de nuevo.');
         setSelectedFileName(null);
       } finally {
         setIsReading(false);
@@ -47,13 +49,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSuccessfullyProcessed }) 
 
   return (
     <section id="upload-section">
-      <h2>1. Sube tu archivo de chat (.txt)</h2>
+      <h2>1. Sube tu archivo de chat (.txt o .zip)</h2>
       <p>Tu archivo se procesa <strong>localmente</strong> en tu navegador. No se sube a ningún servidor.</p>
       
       <input 
         type="file" 
         id="chatfile-input"
-        accept=".txt" 
+        accept=".txt,.zip" // Accept .txt and .zip files
         onChange={handleFileChange}
         style={{ display: 'none' }}
         ref={fileInputRef}

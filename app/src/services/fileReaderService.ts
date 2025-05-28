@@ -1,90 +1,78 @@
+import JSZip from 'jszip';
+
 /**
- * Reads the content of a File object as plain text.
- * Primarily intended for reading .txt chat export files.
- *
- * @param file - The File object to read (e.g., from an <input type="file"> element).
- * @returns A Promise that resolves with the file content as a string.
- * @throws If the file is not a text file (based on a simple MIME type check for 'text/plain')
- * or if there's an error during file reading.
+ * Reads the content of a plain text File object.
+ * @param file - The .txt File object.
+ * @returns A Promise resolving with the file content as a string.
  */
-export function readTextFile(file: File): Promise<string> {
+async function readTextFileContent(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Basic check for .txt file type based on name, can be enhanced with MIME type if needed
-    // WhatsApp exports are typically .txt, and input accept=".txt" should mostly handle this.
-    if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
-      // Allow if type is explicitly text/plain even if extension is missing
-      if (file.type !== 'text/plain') {
-         console.warn(`[FileReaderService] Attempted to read non-txt file: ${file.name} (type: ${file.type})`);
-         return reject(new Error('Invalid file type. Please upload a .txt file.'));
-      }
-    }
-
     const reader = new FileReader();
-
     reader.onload = (event: ProgressEvent<FileReader>) => {
       if (event.target && typeof event.target.result === 'string') {
         resolve(event.target.result);
       } else {
-        // This case should ideally not happen if readAsText is used correctly
-        reject(new Error('Failed to read file content as text.'));
+        reject(new Error('No se pudo leer el contenido del archivo como texto.'));
       }
     };
-
     reader.onerror = (event: ProgressEvent<FileReader>) => {
-      // event.target.error contains the DOMException
-      console.error('[FileReaderService] Error reading file:', event.target?.error);
-      reject(new Error(`Error reading file: ${event.target?.error?.message || 'Unknown error'}`));
+      console.error('[FileReaderService] Error leyendo archivo de texto:', event.target?.error);
+      reject(new Error(`Error al leer el archivo: ${event.target?.error?.message || 'Error desconocido'}`));
     };
-
     reader.onabort = () => {
-      console.warn('[FileReaderService] File reading was aborted.');
-      reject(new Error('File reading was aborted.'));
+      reject(new Error('La lectura del archivo fue abortada.'));
     };
-
-    // Read the file as UTF-8 text. WhatsApp exports are typically UTF-8.
     reader.readAsText(file, 'UTF-8');
   });
 }
 
-// --- Future Enhancements (Placeholder for ZIP handling) ---
-
-// import JSZip from 'jszip'; // Would need to npm install jszip and @types/jszip
-
 /**
- * Reads a chat file, which can be a .txt or a .zip containing a .txt file.
+ * Reads a chat file, which can be a .txt or a .zip containing a single .txt chat file.
  *
  * @param file - The File object (either .txt or .zip).
  * @returns A Promise that resolves with the chat content as a string.
- * @throws If the file type is unsupported, the ZIP is invalid, or no chat .txt found in ZIP.
  */
-/*
 export async function readChatFile(file: File): Promise<string> {
-  if (file.name.toLowerCase().endsWith('.txt') || file.type === 'text/plain') {
-    return readTextFile(file);
-  } else if (file.name.toLowerCase().endsWith('.zip')) {
+  const fileNameLower = file.name.toLowerCase();
+
+  if (fileNameLower.endsWith('.txt') || file.type === 'text/plain') {
+    return readTextFileContent(file);
+  } else if (fileNameLower.endsWith('.zip') || file.type === 'application/zip' || file.type === 'application/x-zip-compressed') {
     try {
       const jszip = new JSZip();
-      const zip = await jszip.loadAsync(file);
+      const zip = await jszip.loadAsync(file); 
       
-      // Look for a .txt file within the ZIP.
-      // Common WhatsApp export name is "_chat.txt" or "WhatsApp Chat with ....txt"
-      const chatFileEntry = Object.values(zip.files).find(
-        (entry) => !entry.dir && entry.name.toLowerCase().endsWith('.txt') &&
-                   (entry.name.toLowerCase().includes('chat') || entry.name.toLowerCase().includes('whatsapp'))
-      );
+      const txtFiles: JSZip.JSZipObject[] = [];
+      // Use '_relativePath' to indicate the parameter is intentionally not used
+      zip.forEach((_relativePath, zipEntry) => {
+        if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.txt')) {
+          txtFiles.push(zipEntry);
+        }
+      });
 
-      if (chatFileEntry) {
-        return await chatFileEntry.async('string');
-      } else {
-        throw new Error('No .txt chat file found within the ZIP archive.');
+      if (txtFiles.length === 0) {
+        throw new Error('No se encontró ningún archivo .txt dentro del archivo ZIP.');
       }
+
+      if (txtFiles.length > 1) {
+        const specificChatFile = txtFiles.find(f => 
+          f.name.toLowerCase().includes('_chat.txt') || 
+          f.name.toLowerCase().startsWith('whatsapp chat')
+        );
+        if (specificChatFile) {
+          return await specificChatFile.async('string');
+        }
+        throw new Error('El archivo ZIP contiene múltiples archivos .txt. Por favor, asegúrate de que haya solo un archivo de chat .txt, o que siga el patrón de nombre de exportación de WhatsApp (ej. _chat.txt).');
+      }
+      
+      return await txtFiles[0].async('string');
+
     } catch (error) {
-      console.error('[FileReaderService] Error processing ZIP file:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process ZIP file';
-      throw new Error(`ZIP Error: ${errorMessage}`);
+      console.error('[FileReaderService] Error procesando el archivo ZIP:', error);
+      const errorMessage = error instanceof Error ? error.message : 'No se pudo procesar el archivo ZIP.';
+      throw new Error(`Error con el ZIP: ${errorMessage}`);
     }
   } else {
-    throw new Error('Unsupported file type. Please upload a .txt or .zip file.');
+    throw new Error('Tipo de archivo no soportado. Por favor, sube un archivo .txt o .zip.');
   }
 }
-*/
