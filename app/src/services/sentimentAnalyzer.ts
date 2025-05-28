@@ -2,13 +2,13 @@ import type {
   ChatMessage,
   CalculatedMetrics,
   AffectionAnalysis,
-  AffectionIndexData,
+  AffectionIndexData, // Used for type assertion and within AffectionAnalysis
   AnalysisFlags,
-  SentimentAIData,
+  SentimentAIData,    // Used as return type and for internal objects
 } from '../types';
 
 // --- Constants for Sentiment and Affection Analysis ---
-export const AFFECTION_INDEX_MAX_FOR_100_PERCENT = 4;
+export const AFFECTION_INDEX_MAX_FOR_100_PERCENT = 4; // Max normalized score for 100% UI display
 export const MIN_MESSAGE_LENGTH_FOR_AI = 5;
 export const AFFECTION_KEYWORD_WEIGHT = 2.0;
 export const POSITIVE_EMOJI_WEIGHT = 0.5;
@@ -17,7 +17,7 @@ export const BATCH_SIZE_AI = 25;
 
 const SENTIMENT_MODEL_NAME = 'Xenova/pysentimiento-robertuito-sentiment-analysis';
 
-// --- Keyword Lists ---
+// --- Keyword Lists (for internal logic, should match language of chats being analyzed) ---
 export const affectionKeywords: string[] = [
   'te quiero', 'tq', 'tk', 'te amo', 'mi amor', 'amor mío', 'cariño', 'cielo', 
   'corazón', 'mi vida', 'precioso', 'preciosa', 'guapo', 'guapa', 'hermoso', 
@@ -29,14 +29,14 @@ export const positiveEmojis: string[] = [
   '😊', '😂', '🤣', '👍', '🎉', '🙏', '✨', '😄', '😁', '😀', '😉', '🥳', '😌', '👌',
 ];
 
-export const greenKeywords: string[] = [
+export const greenKeywords: string[] = [ 
   'gracias', 'por favor', 'de nada', 'disculpa', 'perdón', 'lo siento', 
   'te quiero', 'tq', 'te amo', 'genial', 'excelente', 'buena idea', 
   'felicidades', 'ánimo', 'apoyo', 'cuenta conmigo', 'entiendo', 'comprendo', 
   '❤️', '😊', '👍', '🙏', '🎉', 'jajaja', 'jejeje', 'jiji', '😂', '🤣', '😍',
 ];
 
-export const redKeywords: string[] = [
+export const redKeywords: string[] = [ 
   'nunca', 'jamas', 'siempre haces', 'tu culpa', 'culpa tuya', 'odio', 
   'detesto', 'estúpido', 'imbécil', 'idiota', 'jódete', 'mierda', 'carajo', 
   'problema', 'discutir', 'pelear', 'harto', 'harta', 'molesto', 'molesta', 
@@ -54,15 +54,14 @@ let isLoadingModel = false;
 
 export interface ModelLoadProgress {
   status: 'initializing' | 'downloading' | 'quantizing' | 'loading' | 'done' | 'error' | 'pending';
-  name?: string;
-  file?: string;
-  progress?: number;
-  loaded?: number;
-  total?: number;
-  error?: string;
+  name?: string; file?: string; progress?: number; loaded?: number; total?: number; error?: string;
 }
 export type ModelProgressCallback = (progress: ModelLoadProgress) => void;
 
+/**
+ * Loads the sentiment analysis model.
+ * @param onProgress Callback to report loading progress.
+ */
 export async function loadSentimentModel(onProgress?: ModelProgressCallback): Promise<void> {
   if (sentimentAnalyzer) {
     onProgress?.({ status: 'done', name: SENTIMENT_MODEL_NAME, progress: 100 });
@@ -70,7 +69,7 @@ export async function loadSentimentModel(onProgress?: ModelProgressCallback): Pr
   }
   if (isLoadingModel) {
     onProgress?.({ status: 'pending', name: SENTIMENT_MODEL_NAME });
-    console.warn('[SentimentAnalyzer] Model loading is already in progress.');
+    // console.warn('[SentimentAnalyzer] Model loading is already in progress.');
     return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
             if (!isLoadingModel) {
@@ -90,62 +89,41 @@ export async function loadSentimentModel(onProgress?: ModelProgressCallback): Pr
 
   isLoadingModel = true;
   onProgress?.({ status: 'initializing', name: SENTIMENT_MODEL_NAME });
-  console.log('[SentimentAnalyzer] Initializing model load...');
-
   try {
     const { pipeline, env } = await import('@xenova/transformers');
     if (typeof pipeline !== 'function') throw new Error('Pipeline function not available.');
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
+    env.allowLocalModels = false; env.useBrowserCache = true;
     onProgress?.({ status: 'loading', name: SENTIMENT_MODEL_NAME, progress: 0 });
-    console.log(`[SentimentAnalyzer] Starting to load model: ${SENTIMENT_MODEL_NAME}`);
-    sentimentAnalyzer = (await pipeline(
-      'sentiment-analysis', SENTIMENT_MODEL_NAME, {
-        progress_callback: (progressData: any) => {
-          if (onProgress) {
-            const currentStatus = progressData.status === 'progress' && progressData.progress
-              ? 'quantizing' : progressData.status === 'download' 
-              ? 'downloading' : progressData.status === 'done' || progressData.status === 'ready'
-              ? 'done' : 'loading';
-            onProgress({
-              status: currentStatus, name: progressData.name || SENTIMENT_MODEL_NAME,
-              file: progressData.file, progress: progressData.progress,
-              loaded: progressData.loaded, total: progressData.total,
-            });
-          }
-        },
-      }
-    )) as SentimentAnalysisPipelineFunc;
-    if (!sentimentAnalyzer) throw new Error(`Failed to initialize pipeline.`);
-    console.log('[SentimentAnalyzer] Model loaded successfully.');
+    sentimentAnalyzer = (await pipeline('sentiment-analysis', SENTIMENT_MODEL_NAME, {
+      progress_callback: (pData: any) => onProgress?.({
+        status: pData.status === 'progress' && pData.progress ? 'quantizing' : pData.status === 'download' ? 'downloading' : pData.status === 'done' || pData.status === 'ready' ? 'done' : 'loading',
+        name: pData.name || SENTIMENT_MODEL_NAME, file: pData.file, progress: pData.progress, loaded: pData.loaded, total: pData.total,
+      }),
+    })) as SentimentAnalysisPipelineFunc;
+    if (!sentimentAnalyzer) throw new Error('Failed to initialize pipeline.');
     onProgress?.({ status: 'done', name: SENTIMENT_MODEL_NAME, progress: 100 });
   } catch (error) {
     sentimentAnalyzer = null;
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    console.error('[SentimentAnalyzer] Error loading sentiment model:', errorMessage);
-    onProgress?.({ status: 'error', error: errorMessage, name: SENTIMENT_MODEL_NAME });
-    throw new Error(`Failed to load sentiment model: ${errorMessage}`);
-  } finally {
-    isLoadingModel = false;
-  }
+    const errMsg = error instanceof Error ? error.message : String(error);
+    onProgress?.({ status: 'error', error: errMsg, name: SENTIMENT_MODEL_NAME });
+    throw new Error(`Failed to load sentiment model: ${errMsg}`);
+  } finally { isLoadingModel = false; }
 }
 
-// --- Helper Functions ---
+// --- Analysis Helper Functions ---
 interface InitialAffectionCalculationResult {
   messagesToAnalyzeForAI: ChatMessage[];
   affectionKeywordCountsPerAuthor: Record<string, number>;
 }
 
 function calculateInitialAffectionAndSelectAIMessages(
-  messages: ChatMessage[],
-  participants: string[],
-  affectionIndex: AffectionAnalysis
+  messages: ChatMessage[], participants: string[], affectionIndex: AffectionAnalysis
 ): InitialAffectionCalculationResult {
   const messagesToAnalyzeForAI: ChatMessage[] = [];
   const affectionKeywordCountsPerAuthor: Record<string, number> = {};
   participants.forEach(p => {
     affectionKeywordCountsPerAuthor[p] = 0;
-    if (!affectionIndex[p]) {
+    if (!affectionIndex[p]) { // Should be pre-initialized by caller
       affectionIndex[p] = { score: 0, analyzedCountIA: 0, keywordCount: 0, positiveLabelCount: 0, normalized: 0 } as AffectionIndexData;
     }
   });
@@ -158,10 +136,10 @@ function calculateInitialAffectionAndSelectAIMessages(
     let currentMsgKeywordCount = 0;
 
     affectionKeywords.forEach(keyword => {
-      const keywordRegex = (keyword.length <= 3 || !keyword.match(/[a-z0-9]/i) )
-        ? new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+      const kRegex = (keyword.length <= 3 || !keyword.match(/[a-z0-9]/i)) 
+        ? new RegExp(`\\b${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i') 
         : new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-      if (keywordRegex.test(lowerContent)) {
+      if (kRegex.test(lowerContent)) {
         currentMsgAffectionScore += AFFECTION_KEYWORD_WEIGHT;
         currentMsgKeywordCount++;
       }
@@ -171,11 +149,13 @@ function calculateInitialAffectionAndSelectAIMessages(
         currentMsgAffectionScore += POSITIVE_EMOJI_WEIGHT;
       }
     });
+
     affectionIndex[author].score += currentMsgAffectionScore;
     affectionIndex[author].keywordCount += currentMsgKeywordCount;
     if (currentMsgKeywordCount > 0) {
       affectionKeywordCountsPerAuthor[author] = (affectionKeywordCountsPerAuthor[author] || 0) + currentMsgKeywordCount;
     }
+
     const trimmedContent = msg.content.trim();
     const isMedia = trimmedContent.startsWith('<Media omitted>') || trimmedContent.startsWith('<Multimedia omitido>') ||
                     trimmedContent.includes(' omitido') || trimmedContent.includes(' omitted>');
@@ -187,8 +167,7 @@ function calculateInitialAffectionAndSelectAIMessages(
 }
 
 async function performSentimentAnalysisAI(
-  messagesToAnalyze: ChatMessage[],
-  analyzer: SentimentAnalysisPipelineFunc,
+  messagesToAnalyze: ChatMessage[], analyzer: SentimentAnalysisPipelineFunc, 
   onProgress?: (processed: number, total: number) => void
 ): Promise<SentimentAIData[]> {
   const results: SentimentAIData[] = [];
@@ -200,143 +179,120 @@ async function performSentimentAnalysisAI(
     try {
       const batchResults = await analyzer(contents);
       batchResults.forEach((result, index) => {
-        const originalMessage = batch[index];
-        // Create an object that conforms to SentimentAIData
-        const sentimentDataPoint: SentimentAIData = {
-          author: originalMessage.author,
-          label: result.label as 'POS' | 'NEG' | 'NEU', // Ensure label is one of the expected
+        const sentimentDataPoint: SentimentAIData = { // Explicitly typing for clarity
+          author: batch[index].author,
+          label: result.label as 'POS' | 'NEG' | 'NEU',
           confidence: result.score,
         };
         results.push(sentimentDataPoint);
       });
-    } catch (error) {
-        console.error(`[SentimentAnalyzer] AI: Error processing batch ${i / BATCH_SIZE_AI + 1}`, error);
-    }
-    const processedCount = Math.min(i + batch.length, totalToProcess);
-    onProgress?.(processedCount, totalToProcess);
-    if (batch.length === BATCH_SIZE_AI) {
-        await new Promise(r => setTimeout(r, 5)); // Small delay between batches
-    }
+    } catch (error) { console.error(`[SentimentAnalyzer] AI Error processing batch`, error); }
+    onProgress?.(Math.min(i + batch.length, totalToProcess), totalToProcess);
+    if (batch.length === BATCH_SIZE_AI) await new Promise(r => setTimeout(r, 5));
   }
   return results;
 }
 
-function finalizeAffectionIndex(
-  affectionIndex: AffectionAnalysis,
-  metrics: CalculatedMetrics
-): void {
+function finalizeAffectionIndex(affectionIndex: AffectionAnalysis, metrics: CalculatedMetrics): void {
   metrics.global.participants.forEach(author => {
-    const indexData = affectionIndex[author];
-    if (indexData) {
-      indexData.score += (indexData.positiveLabelCount || 0) * POSITIVE_SENTIMENT_WEIGHT;
-      const totalMessagesByAuthor = metrics.participants[author]?.messageCount || 0;
-      if (totalMessagesByAuthor > 0) {
-        const normalizedScore = (indexData.score / totalMessagesByAuthor) * 10;
-        indexData.normalized = parseFloat(Math.min(normalizedScore, 15).toFixed(2));
-      } else {
-        indexData.normalized = 0;
-      }
+    const idxData = affectionIndex[author];
+    if (idxData) {
+      idxData.score += (idxData.positiveLabelCount || 0) * POSITIVE_SENTIMENT_WEIGHT;
+      const msgCount = metrics.participants[author]?.messageCount || 0;
+      idxData.normalized = msgCount > 0 ? parseFloat(Math.min((idxData.score / msgCount) * 10, 15).toFixed(2)) : 0;
     }
   });
 }
 
+// --- Flag Generation Functions (User-facing text in Spanish) ---
+
 function generateSentimentFlags(
-    wasAIAnalysisPerformed: boolean,
-    aiResultsCount: number,
-    allSentimentLabels: Array<'POS' | 'NEG' | 'NEU'>,
-    sentimentCountsByUser: Record<string, { POS: number; NEG: number; NEU: number }>,
-    metrics: CalculatedMetrics,
-    affectionIndex: AffectionAnalysis,
-    flagsRef: AnalysisFlags
+  wasAIPerformed: boolean, aiResultsCount: number, allAISentimentLabels: Array<'POS' | 'NEG' | 'NEU'>,
+  sentimentCountsByUser: Record<string, { POS: number; NEG: number; NEU: number }>,
+  metrics: CalculatedMetrics, affectionIndex: AffectionAnalysis, flagsRef: AnalysisFlags
 ) {
-    if (!wasAIAnalysisPerformed || aiResultsCount <= 10) {
-      return;
+  if (!wasAIPerformed || aiResultsCount <= 10) {
+    if (wasAIPerformed && aiResultsCount > 0) { 
+        // This message could be a "neutral" observation or a point for reflection if desired.
+        // flagsRef.positive.push(`El análisis de IA del tono se basó en pocos mensajes (${aiResultsCount}), por lo que la percepción general podría ser limitada.`);
     }
-    const totalAnalyzedIA = allSentimentLabels.length;
-    const overallSentimentCounts = { POS: 0, NEG: 0, NEU: 0 };
-    allSentimentLabels.forEach(label => overallSentimentCounts[label]++);
-    const positivePercent = (overallSentimentCounts.POS / totalAnalyzedIA) * 100;
-    const negativePercent = (overallSentimentCounts.NEG / totalAnalyzedIA) * 100;
-    const neutralPercent = 100 - positivePercent - negativePercent;
+    return;
+  }
+  const totalAnalyzed = allAISentimentLabels.length;
+  const overallCounts = { POS: 0, NEG: 0, NEU: 0 };
+  allAISentimentLabels.forEach(label => overallCounts[label]++);
+  const posPercent = (overallCounts.POS / totalAnalyzed) * 100;
+  const negPercent = (overallCounts.NEG / totalAnalyzed) * 100;
 
-    if (positivePercent > 60) flagsRef.positive.push(`Overall tone (AI): Predominantly positive (~${Math.round(positivePercent)}% Pos vs ~${Math.round(negativePercent)}% Neg), a favorable sign.`);
-    else if (positivePercent > negativePercent && positivePercent > 40) flagsRef.positive.push(`Overall tone (AI): Mostly positive (~${Math.round(positivePercent)}% Pos vs ~${Math.round(negativePercent)}% Neg).`);
-    else if (negativePercent > positivePercent && negativePercent > 40) flagsRef.attention.push(`Overall tone (AI): Notable negative presence (~${Math.round(negativePercent)}% Neg vs ~${Math.round(positivePercent)}% Pos), suggests reflection.`);
-    else if (negativePercent > 25) flagsRef.attention.push(`Overall tone (AI): Significant presence of negativity (~${Math.round(negativePercent)}% Neg vs ~${Math.round(positivePercent)}% Pos).`);
-    else if (neutralPercent > 50 && positivePercent >= 10) flagsRef.positive.push(`Overall tone (AI): Mostly neutral (~${Math.round(neutralPercent)}% Neu) with some positive notes.`);
-    else if (neutralPercent > 60) flagsRef.positive.push(`Overall tone (AI): Mostly neutral (~${Math.round(neutralPercent)}% Neu).`);
+  if (posPercent > 60) flagsRef.positive.push(`El tono general de la conversación, según la IA, tiende a ser predominantemente positivo (aprox. ${Math.round(posPercent)}% mensajes positivos).`);
+  else if (posPercent > negPercent && posPercent > 40) flagsRef.positive.push(`En general, la IA percibe un tono mayormente positivo en los mensajes (aprox. ${Math.round(posPercent)}% positivos vs. ${Math.round(negPercent)}% negativos).`);
+  else if (negPercent > posPercent && negPercent > 40) flagsRef.attention.push(`La IA detecta una notable presencia de mensajes con tono negativo (aprox. ${Math.round(negPercent)}% negativos vs. ${Math.round(posPercent)}% positivos), lo cual podría ser un punto para reflexionar.`);
+  else if (negPercent > 25) flagsRef.attention.push(`Se observa una presencia significativa de mensajes con tono negativo según la IA (aprox. ${Math.round(negPercent)}%).`);
+  else flagsRef.positive.push(`El tono general de la conversación, según la IA, parece ser mixto o mayormente neutral.`);
 
-    if (metrics.global.participants.length === 2) {
-        const [p1, p2] = metrics.global.participants;
-        const analyzedP1 = affectionIndex[p1]?.analyzedCountIA || 0;
-        const analyzedP2 = affectionIndex[p2]?.analyzedCountIA || 0;
-        if (analyzedP1 > 5 && analyzedP2 > 5) {
-            const negP1 = analyzedP1 > 0 ? ((sentimentCountsByUser[p1]?.NEG || 0) / analyzedP1) * 100 : 0;
-            const negP2 = analyzedP2 > 0 ? ((sentimentCountsByUser[p2]?.NEG || 0) / analyzedP2) * 100 : 0;
-            const posP1 = analyzedP1 > 0 ? ((sentimentCountsByUser[p1]?.POS || 0) / analyzedP1) * 100 : 0;
-            const posP2 = analyzedP2 > 0 ? ((sentimentCountsByUser[p2]?.POS || 0) / analyzedP2) * 100 : 0;
-            const negDiffThr = 1.8, minNegFlag = 15;
-            if (negP1 > negP2 * negDiffThr && negP1 > minNegFlag) flagsRef.attention.push(`${p1} tends to more negativity (AI) than ${p2} (~${Math.round(negP1)}% vs ~${Math.round(negP2)}%).`);
-            else if (negP2 > negP1 * negDiffThr && negP2 > minNegFlag) flagsRef.attention.push(`${p2} tends to more negativity (AI) than ${p1} (~${Math.round(negP2)}% vs ~${Math.round(negP1)}%).`);
-            const posDiffThr = 1.5, minPosFlag = 30;
-            if (!flagsRef.attention.some(f => f.includes('tends to more negativity'))) {
-                if (posP1 > posP2 * posDiffThr && posP1 > minPosFlag) flagsRef.positive.push(`${p1} tends to more positivity (AI) than ${p2} (~${Math.round(posP1)}% vs ~${Math.round(posP2)}%).`);
-                else if (posP2 > posP1 * posDiffThr && posP2 > minPosFlag) flagsRef.positive.push(`${p2} tends to more positivity (AI) than ${p1} (~${Math.round(posP2)}% vs ~${Math.round(posP1)}%).`);
-            }
-        }
+  if (metrics.global.participants.length === 2) {
+    const [p1, p2] = metrics.global.participants;
+    const analyzedP1 = affectionIndex[p1]?.analyzedCountIA || 0;
+    const analyzedP2 = affectionIndex[p2]?.analyzedCountIA || 0;
+    if (analyzedP1 > 5 && analyzedP2 > 5) {
+      const negP1 = analyzedP1 > 0 ? ((sentimentCountsByUser[p1]?.NEG || 0) / analyzedP1) * 100 : 0;
+      const negP2 = analyzedP2 > 0 ? ((sentimentCountsByUser[p2]?.NEG || 0) / analyzedP2) * 100 : 0;
+      if (Math.abs(negP1 - negP2) > 20 && (negP1 > 15 || negP2 > 15)) {
+        const moreNegP = negP1 > negP2 ? p1 : p2;
+        const lessNegP = negP1 > negP2 ? p2 : p1;
+        flagsRef.attention.push(`La IA sugiere que ${moreNegP} tiende a usar un tono negativo con más frecuencia (aprox. ${Math.round(Math.max(negP1,negP2))}%) que ${lessNegP} (aprox. ${Math.round(Math.min(negP1,negP2))}%) en los mensajes analizados.`);
+      }
     }
+  }
 }
 
 function generateKeywordFlags(
-    totalMessagesInChat: number,
-    affectionKeywordCountsPerAuthor: Record<string, number>,
-    allChatMessages: ChatMessage[],
-    flagsRef: AnalysisFlags
+  totalMessagesInChat: number, affectionKeywordCountsPerAuthor: Record<string, number>,
+  allChatMessages: ChatMessage[], flagsRef: AnalysisFlags
 ) {
-    let greenKeywordOverallCount = 0;
-    let redKeywordOverallCount = 0;
-    const totalAffectionKeywordsOverall = Object.values(affectionKeywordCountsPerAuthor).reduce((sum, count) => sum + count, 0);
-    allChatMessages.forEach(msg => {
-        const lowerContent = msg.content.toLowerCase();
-        greenKeywords.forEach(k => { if (!affectionKeywords.includes(k) && lowerContent.includes(k)) greenKeywordOverallCount++; });
-        redKeywords.forEach(k => { if (lowerContent.includes(k)) redKeywordOverallCount++; });
-    });
-    const keywordThreshold = Math.max(5, Math.round(totalMessagesInChat * 0.01));
-    if (greenKeywordOverallCount > keywordThreshold) flagsRef.positive.push(`Frequent use (${greenKeywordOverallCount} instances) of words/emojis for general positivity or politeness.`);
-    if (redKeywordOverallCount > keywordThreshold) flagsRef.attention.push(`Frequent use (${redKeywordOverallCount} instances) of words/emojis for negativity or conflict.`);
-    if (totalAffectionKeywordsOverall > keywordThreshold && !flagsRef.positive.some(f => f.includes("explicit affection"))) {
-        flagsRef.positive.push(`Frequent use (${totalAffectionKeywordsOverall} instances) of words/emojis for explicit affection.`);
-    }
+  let generalPositiveKwCount = 0;
+  let generalNegativeKwCount = 0;
+  const totalAffectionKeywordsOverall = Object.values(affectionKeywordCountsPerAuthor).reduce((s, c) => s + c, 0);
+
+  allChatMessages.forEach(msg => {
+    const lc = msg.content.toLowerCase();
+    greenKeywords.forEach(k => { if (!affectionKeywords.includes(k) && lc.includes(k)) generalPositiveKwCount++; });
+    redKeywords.forEach(k => { if (lc.includes(k)) generalNegativeKwCount++; });
+  });
+  
+  const threshold = Math.max(5, Math.round(totalMessagesInChat * 0.015));
+
+  if (generalPositiveKwCount > threshold) {
+    flagsRef.positive.push(`Se aprecia un uso recurrente (${generalPositiveKwCount} veces) de palabras o emojis que denotan cortesía o un ambiente positivo en general.`);
+  }
+  if (generalNegativeKwCount > threshold) {
+    flagsRef.attention.push(`Se observa un uso notable (${generalNegativeKwCount} veces) de expresiones que podrían indicar negatividad, conflicto o tensión.`);
+  }
+  if (totalAffectionKeywordsOverall > threshold) {
+    flagsRef.positive.push(`Hay expresiones frecuentes (${totalAffectionKeywordsOverall} veces) de afecto explícito en la conversación.`);
+  }
 }
 
 // --- Main Orchestrator Function ---
 export async function analyzeChatSentimentAndAffection(
-  messages: ChatMessage[],
-  metrics: CalculatedMetrics,
-  analysisFlagsRef: AnalysisFlags,
-  onProgress?: ModelProgressCallback,
-  onAIAnalysisProgress?: (processed: number, total: number) => void
+  messages: ChatMessage[], metrics: CalculatedMetrics, analysisFlagsRef: AnalysisFlags,
+  onProgress?: ModelProgressCallback, onAIAnalysisProgress?: (processed: number, total: number) => void
 ): Promise<AffectionAnalysis> {
-  // console.log('[SentimentAnalyzer] Starting full sentiment and affection analysis...');
-  if (!messages.length || !metrics.global.participants.length) {
-    console.warn('[SentimentAnalyzer] No messages or participants to analyze.');
-    return {};
-  }
+  if (!messages.length || !metrics.global.participants.length) return {};
 
   if (!sentimentAnalyzer) {
-    try { await loadSentimentModel(onProgress); } 
-    catch (error) {
-      console.error('[SentimentAnalyzer] Model loading failed. Proceeding without AI features.', error);
-      analysisFlagsRef.attention.push("AI sentiment analysis could not be performed: model loading error.");
+    try { 
+      await loadSentimentModel(onProgress); 
+    } catch (error) {
+      // Error is caught by App.tsx and updates appStatusMessage.
+      // No flag pushed here for model loading errors.
+      console.error('[SentimentAnalyzer] Model loading failed during main analysis. AI features will be skipped.', error);
     }
   }
 
   const affectionIndex: AffectionAnalysis = {};
   metrics.global.participants.forEach(p => {
-    affectionIndex[p] = {
-        score: 0, analyzedCountIA: 0, keywordCount: 0,
-        positiveLabelCount: 0, normalized: 0
-    } as AffectionIndexData; // Explicit cast to ensure AffectionIndexData type is "used"
+    affectionIndex[p] = { score: 0, analyzedCountIA: 0, keywordCount: 0, positiveLabelCount: 0, normalized: 0 } as AffectionIndexData;
   });
 
   const { messagesToAnalyzeForAI, affectionKeywordCountsPerAuthor } =
@@ -359,7 +315,9 @@ export async function analyzeChatSentimentAndAffection(
     });
   } else {
     if (messagesToAnalyzeForAI.length > 0 && !sentimentAnalyzer) {
-      analysisFlagsRef.attention.push("AI sentiment analysis skipped: AI model not loaded.");
+      // AI was applicable but model wasn't ready. App.tsx's status message handles this.
+      // No flag pushed here for AI skipped due to no model.
+      console.warn('[SentimentAnalyzer] Messages were eligible for AI, but the sentiment model is not loaded.');
     }
   }
 
@@ -367,6 +325,5 @@ export async function analyzeChatSentimentAndAffection(
   finalizeAffectionIndex(affectionIndex, metrics);
   generateKeywordFlags(messages.length, affectionKeywordCountsPerAuthor, messages, analysisFlagsRef);
 
-  // console.log('[SentimentAnalyzer] Full sentiment and affection analysis process complete.');
   return affectionIndex;
 }

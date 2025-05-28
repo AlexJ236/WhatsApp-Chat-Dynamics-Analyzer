@@ -8,14 +8,14 @@ import type {
 // --- Constants for Metric Flags ---
 const METRIC_FLAGS_PARTICIPATION_IMBALANCE_THRESHOLD_PERCENT = 25;
 const METRIC_FLAGS_LENGTH_IMBALANCE_RATIO = 1.8;
-const METRIC_FLAGS_STARTER_IMBALANCE_THRESHOLD_PERCENT = 15;
+const METRIC_FLAGS_STARTER_IMBALANCE_THRESHOLD_PERCENT = 20; // Slightly adjusted for more significance
 const METRIC_FLAGS_RESP_TIME_SLOW_THRESHOLD_MIN = 90;
 const METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN = 10;
 const METRIC_FLAGS_UNILATERAL_THRESHOLD_MESSAGES = 3;
 const METRIC_FLAGS_UNILATERAL_RESPONSE_DELAY_HOURS = 2;
 
 /**
- * Generates flags based on quantitative metrics.
+ * Generates flags based on quantitative metrics, with more descriptive, human-like phrasing.
  * Mutates the provided analysisFlagsRef object.
  */
 export function generateMetricBasedFlags(
@@ -31,43 +31,42 @@ export function generateMetricBasedFlags(
     const countP1 = metrics.participants[p1]?.messageCount || 0;
     const countP2 = metrics.participants[p2]?.messageCount || 0;
 
-    if (totalMsgs > 0) {
+    if (totalMsgs > 20) {
       const percentP1 = (countP1 / totalMsgs) * 100;
-      const percentP2 = (countP2 / totalMsgs) * 100; // Use countP2 for percentP2
+      const percentP2 = (countP2 / totalMsgs) * 100;
       const participationDiff = Math.abs(percentP1 - 50);
 
       if (participationDiff > METRIC_FLAGS_PARTICIPATION_IMBALANCE_THRESHOLD_PERCENT) {
+        const moreActive = percentP1 > percentP2 ? p1 : p2;
+        const lessActive = percentP1 > percentP2 ? p2 : p1;
         flagsRef.attention.push(
-          `Message participation very unequal: ${p1} (${Math.round(percentP1)}%) vs ${p2} (${Math.round(percentP2)}%) ` +
-          `differs more than ${METRIC_FLAGS_PARTICIPATION_IMBALANCE_THRESHOLD_PERCENT}% from 50/50.`
+          `Participación Desigual: Se observa que ${moreActive} (${Math.round(Math.max(percentP1, percentP2))}%) tiende a enviar una cantidad considerablemente mayor de mensajes que ${lessActive}, lo que podría sugerir un desbalance en la participación activa.`
         );
       } else if (participationDiff > 10) {
+        const moreActive = percentP1 > percentP2 ? p1 : p2;
         flagsRef.attention.push(
-          `Message participation moderately unequal (${p1}: ${Math.round(percentP1)}%, ${p2}: ${Math.round(percentP2)}%).`
+          `Participación Ligeramente Desigual: Hay una tendencia a que ${moreActive} (${Math.round(Math.max(percentP1, percentP2))}%) participe un poco más en términos de volumen de mensajes. Sería bueno reflexionar si esta dinámica es cómoda para ambos.`
         );
       } else {
         flagsRef.positive.push(
-          `Message participation relatively balanced (${p1}: ${Math.round(percentP1)}%, ${p2}: ${Math.round(percentP2)}%).`
+          `Participación Equilibrada: La cantidad de mensajes enviados por ${p1} (${Math.round(percentP1)}%) y ${p2} (${Math.round(percentP2)}%) es bastante similar, sugiriendo un buen balance en la contribución a la conversación.`
         );
       }
     }
 
     const avgWp1 = metrics.participants[p1]?.avgWordsPerMessage || 0;
     const avgWp2 = metrics.participants[p2]?.avgWordsPerMessage || 0;
-    if (avgWp1 > 0 && avgWp2 > 0) {
+    if (avgWp1 > 0 && avgWp2 > 0 && (countP1 > 10 && countP2 > 10)) {
       const ratio = Math.max(avgWp1 / avgWp2, avgWp2 / avgWp1);
       if (ratio > METRIC_FLAGS_LENGTH_IMBALANCE_RATIO) {
         const longerAuthor = avgWp1 > avgWp2 ? p1 : p2;
         const shorterAuthor = avgWp1 > avgWp2 ? p2 : p1;
-        const longerAvg = Math.max(avgWp1, avgWp2);
-        const shorterAvg = Math.min(avgWp1, avgWp2);
         flagsRef.attention.push(
-          `Avg. message length unequal: ${longerAuthor} (${longerAvg.toFixed(1)} words) vs ${shorterAuthor} (${shorterAvg.toFixed(1)} words), ` +
-          `ratio > ${METRIC_FLAGS_LENGTH_IMBALANCE_RATIO.toFixed(1)}.`
+          `Extensión de Mensajes Desigual: ${longerAuthor} suele escribir mensajes más extensos (promedio ${avgWp1 > avgWp2 ? avgWp1.toFixed(0) : avgWp2.toFixed(0)} pal.) en comparación con ${shorterAuthor} (promedio ${avgWp1 < avgWp2 ? avgWp1.toFixed(0) : avgWp2.toFixed(0)} pal.). Esto podría influir en la percepción del detalle o la elaboración en sus comunicaciones.`
         );
       } else {
         flagsRef.positive.push(
-          `Avg. message length similar between ${p1} (${avgWp1.toFixed(1)} words) and ${p2} (${avgWp2.toFixed(1)} words).`
+          `Extensión de Mensajes Similar: Ambos participantes tienden a escribir mensajes de una longitud promedio parecida, lo que puede indicar un estilo de comunicación verbalmente equilibrado.`
         );
       }
     }
@@ -80,37 +79,34 @@ export function generateMetricBasedFlags(
       const startDiff = Math.abs(startPercentP1 - 50);
       if (startDiff > METRIC_FLAGS_STARTER_IMBALANCE_THRESHOLD_PERCENT) {
         const initiator = startPercentP1 > 50 ? p1 : p2;
-        const other = startPercentP1 > 50 ? p2 : p1;
-        const higherPercent = Math.round(Math.max(startPercentP1, 100 - startPercentP1));
         flagsRef.attention.push(
-          `${initiator} initiates most (${higherPercent}%) of conversations (vs ${other}: ${100-higherPercent}%), ` +
-          `differs > ${METRIC_FLAGS_STARTER_IMBALANCE_THRESHOLD_PERCENT}% from 50/50.`
+          `Iniciativa Desigual: ${initiator} parece ser quien más frecuentemente da el primer paso para iniciar las conversaciones (alrededor del ${Math.round(Math.max(startPercentP1, 100 - startPercentP1))}% de las veces). Considerar cómo se sienten ambos con esta dinámica.`
         );
       } else {
-        flagsRef.positive.push(`Conversation starting relatively balanced (${p1}: ${startsP1} starts, ${p2}: ${startsP2} starts).`);
+        flagsRef.positive.push(`Iniciativa Compartida: La tendencia a iniciar conversaciones parece ser bastante compartida y equilibrada entre ambos.`);
       }
     }
   }
 
   participants.forEach(author => {
     const respTimeData = metrics.participants[author]?.avgResponseTime;
-    if (respTimeData && respTimeData.count > 5) {
+    if (respTimeData && respTimeData.count > 10) {
       if (respTimeData.averageMinutes > METRIC_FLAGS_RESP_TIME_SLOW_THRESHOLD_MIN) {
         flagsRef.attention.push(
-          `Median response time for ${author} is long (~${Math.round(respTimeData.averageMinutes)} min), exceeding ${METRIC_FLAGS_RESP_TIME_SLOW_THRESHOLD_MIN} min.`
+          `Respuesta Lenta de ${author}: El tiempo mediano que ${author} toma para responder tiende a ser extenso (aprox. ${Math.round(respTimeData.averageMinutes)} min). Si es un patrón constante, podría ser un punto a conversar sobre la fluidez esperada.`
         );
-      } else if (respTimeData.averageMinutes < METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN) {
+      } else if (respTimeData.averageMinutes < METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN && respTimeData.averageMinutes > 0) {
         flagsRef.positive.push(
-          `Median response time for ${author} is fast (~${Math.round(respTimeData.averageMinutes)} min), below ${METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN} min.`
+          `Respuesta Rápida de ${author}: ${author} usualmente responde con agilidad (tiempo mediano aprox. ${Math.round(respTimeData.averageMinutes)} min), lo que puede contribuir a una comunicación fluida y dinámica.`
         );
       }
     }
 
     const unilateralCount = metrics.participants[author]?.unilateralSegments || 0;
     if (unilateralCount > 0) {
-      const freqText = unilateralCount >= 8 ? "VERY frequent" : (unilateralCount >= 4 ? "frequent" : "occasional");
+      const freqText = unilateralCount >= 5 ? "reiterados" : (unilateralCount >= 2 ? "algunos" : "ocasionales");
       flagsRef.attention.push(
-        `${freqText} episodes (${unilateralCount}) where ${author} sent ${METRIC_FLAGS_UNILATERAL_THRESHOLD_MESSAGES}+ messages and the reply took >${METRIC_FLAGS_UNILATERAL_RESPONSE_DELAY_HOURS}h.`
+        `Monólogos o Retrasos Notables (${author}): Se observaron ${freqText} episodios (${unilateralCount}) donde ${author} envió ${METRIC_FLAGS_UNILATERAL_THRESHOLD_MESSAGES}+ mensajes consecutivos que fueron seguidos por un silencio de más de ${METRIC_FLAGS_UNILATERAL_RESPONSE_DELAY_HOURS}h por parte del otro. Vale la pena reflexionar sobre estos momentos.`
       );
     }
   });
@@ -127,30 +123,32 @@ function collectAndCleanFlags(analysisFlags: AnalysisFlags): CleanedFlagsResult 
   const attentionPoints: string[] = [];
   const addedKeys = new Set<string>();
 
+  // Keywords updated to match fragments of the new Spanish, more descriptive flags
   const flagMappings = {
     positive: [
-      { keywords: ["balanced", "equilibrada en mensajes"], key: "bal_msg" },
-      { keywords: ["similar average message length", "longitud promedio de mensajes similar"], key: "bal_len" },
-      { keywords: ["conversation starting relatively balanced", "inicio de conversaciones relativamente equilibrado"], key: "bal_start" },
-      { keywords: ["fast response time", "rápido"], key: "resp_fast" },
-      { keywords: ["reciprocal", "pocos segmentos unilaterales"], key: "reciprocal" },
-      { keywords: ["predominantly positive (ai)"], key: "tone_v_pos" },
-      { keywords: ["mostly positive (ai)"], key: "tone_m_pos" },
-      { keywords: ["mostly neutral (ai)"], key: "tone_neu" },
-      { keywords: ["tends to more positivity (ai)"], key: "tone_p_more" },
-      { keywords: ["frequent use", "positividad o cortesía", "positivity or politeness"], key: "kw_pos" },
-      { keywords: ["frequent use", "afecto explícito", "explicit affection"], key: "kw_aff" },
+      { keywords: ["participación equilibrada"], key: "bal_msg" },
+      { keywords: ["extensión de mensajes similar", "verbalmente equilibrado"], key: "bal_len" },
+      { keywords: ["iniciativa compartida"], key: "bal_start" },
+      { keywords: ["respuesta rápida", "responde con agilidad"], key: "resp_fast" },
+      // { keywords: ["recíproca"], key: "reciprocal" }, // Example, if you add such a flag
+      { keywords: ["tono", "predominantemente positivo"], key: "tone_v_pos" },
+      { keywords: ["tono", "mayormente positivo"], key: "tone_m_pos" },
+      { keywords: ["tono", "mayormente neutral"], key: "tone_neu" },
+      // { keywords: ["tiende a más positividad (ia)"], key: "tone_p_more" }, // Already covered by tone flags generally
+      { keywords: ["cortesía", "ambiente positivo general"], key: "kw_pos" },
+      { keywords: ["afecto explícito"], key: "kw_aff" },
     ],
     attention: [
-      { keywords: ["unequal", "desigual"], key: "imbal_msg" },
-      { keywords: ["avg. message length unequal", "notablemente más largos"], key: "imbal_len" },
-      { keywords: ["initiates most", "inicia la mayoría"], key: "imbal_start" },
-      { keywords: ["long response time", "largo (~"], key: "resp_slow" },
-      { keywords: ["episodes where", "reply took >", "retraso resp >"], key: "delayed_response" },
-      { keywords: ["notable negative presence (ai)"], key: "tone_v_neg" },
-      { keywords: ["significant presence of negativity (ai)"], key: "tone_m_neg" },
-      { keywords: ["tends to more negativity (ai)"], key: "tone_n_more" },
-      { keywords: ["frequent use", "negatividad o conflicto", "negativity or conflict"], key: "kw_neg" },
+      { keywords: ["participación desigual"], key: "imbal_msg" },
+      { keywords: ["extensión de mensajes desigual"], key: "imbal_len" },
+      { keywords: ["iniciativa desigual"], key: "imbal_start" },
+      { keywords: ["respuesta lenta", "respuesta extenso"], key: "resp_slow" },
+      { keywords: ["monólogos o retrasos notables", "silencio prolongado"], key: "delayed_response" },
+      { keywords: ["tono", "notable presencia negativa"], key: "tone_v_neg" },
+      { keywords: ["tono", "significativa de negatividad"], key: "tone_m_neg" },
+      // { keywords: ["tiende a más negatividad (ia)"], key: "tone_n_more" }, // Covered by tone flags
+      { keywords: ["negatividad o conflicto"], key: "kw_neg" },
+      { keywords: ["ia no pudo realizarse", "ia se omitió"], key: "ai_error_skip" }
     ],
   };
 
@@ -161,9 +159,11 @@ function collectAndCleanFlags(analysisFlags: AnalysisFlags): CleanedFlagsResult 
     type: 'pos' | 'att'
   ) => {
     list.forEach(flagText => {
-      let cleanText = flagText.replace(/^(Obs:|Patrón:|Observación:|Nota:|Overall tone \(AI\):|Metric-based:)\s*/i, '').trim();
+      // CleanText logic remains the same: Capitalize, ensure period.
+      let cleanText = flagText.replace(/^(Patrón:|Observación:|Métrica:)\s*/i, '').trim();
       cleanText = cleanText.charAt(0).toUpperCase() + cleanText.slice(1);
       cleanText = cleanText.endsWith('.') ? cleanText : cleanText + '.';
+      
       let mappedKey: string | null = null;
       for (const mapping of mappings) {
         if (mapping.keywords.some(kw => cleanText.toLowerCase().includes(kw.toLowerCase()))) {
@@ -171,11 +171,12 @@ function collectAndCleanFlags(analysisFlags: AnalysisFlags): CleanedFlagsResult 
           break;
         }
       }
+      // Add to point list if conceptually new for that list type, or if no key mapped (generic flag)
       if (mappedKey && !addedKeys.has(mappedKey + "_" + type)) {
         targetPointList.push(cleanText);
-        addedKeys.add(mappedKey);
+        addedKeys.add(mappedKey); 
         addedKeys.add(mappedKey + "_" + type);
-      } else if (!mappedKey && !targetPointList.includes(cleanText)) {
+      } else if (!mappedKey && !targetPointList.some(p => p.startsWith(cleanText.substring(0, 30)))) { // Avoid very similar generic flags
         targetPointList.push(cleanText);
       }
     });
@@ -187,104 +188,97 @@ function collectAndCleanFlags(analysisFlags: AnalysisFlags): CleanedFlagsResult 
   return { positivePoints, attentionPoints, addedKeys };
 }
 
+// --- Profile Generation Helpers (Rephrased for more human-like tone in Spanish) ---
+
 function generateBalanceProfile(addedKeys: Set<string>): string {
-  let text = "<strong>Balance & Participation:</strong> ";
   const findings: string[] = [];
-  if (addedKeys.has('bal_msg')) findings.push("message quantity appears balanced");
-  else if (addedKeys.has('imbal_msg')) findings.push("imbalance in message quantity is observed");
-  if (addedKeys.has('bal_len')) findings.push("average message length is similar");
-  else if (addedKeys.has('imbal_len')) findings.push("difference in average message length exists");
-  if (addedKeys.has('bal_start')) findings.push("conversation starting is shared");
-  else if (addedKeys.has('imbal_start')) findings.push("one participant initiates more conversations");
+  if (addedKeys.has('bal_msg')) findings.push("la cantidad de mensajes intercambiados sugiere una participación bastante equitativa");
+  else if (addedKeys.has('imbal_msg')) findings.push("se percibe una diferencia en el volumen de mensajes, con uno de los participantes contribuyendo notablemente más que el otro");
   
-  if (findings.length === 0) return ""; // Return empty string if no relevant findings
-  text += findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join(", ") + ".";
-  return text;
+  if (addedKeys.has('bal_len')) findings.push("la extensión de los mensajes tiende a ser similar por parte de ambos");
+  else if (addedKeys.has('imbal_len')) findings.push("hay una tendencia a que un participante elabore mensajes más largos mientras el otro es más conciso");
+  
+  if (addedKeys.has('bal_start')) findings.push("la iniciativa para comenzar nuevas conversaciones parece ser compartida");
+  else if (addedKeys.has('imbal_start')) findings.push("uno de los dos suele ser quien da el primer paso para iniciar los intercambios con más frecuencia");
+
+  if (findings.length === 0) return "";
+  return `<p><strong>Balance y Participación:</strong> ${findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join("; y ")}.</p>`;
 }
 
 function generateAffectionProfile(
-  affectionAnalysis: AffectionAnalysis,
-  participants: string[], // Takes participants list directly
-  addedKeys: Set<string>
+  affectionAnalysis: AffectionAnalysis, participants: string[], addedKeys: Set<string>
 ): string {
-  let text = "<strong>Estimated Affection:</strong> ";
   const findings: string[] = [];
-
   if (participants.length === 2) {
     const [p1, p2] = participants;
     const affP1 = affectionAnalysis[p1]?.normalized || 0;
     const affP2 = affectionAnalysis[p2]?.normalized || 0;
     const totalAff = affP1 + affP2;
-    const affectionDifference = Math.abs(affP1 - affP2);
-    const significantAffectionDifference = totalAff > 1.0 && affectionDifference > (totalAff * 0.4) && affectionDifference > 1.0;
+    const diff = Math.abs(affP1 - affP2);
 
-    if (significantAffectionDifference) {
-      findings.push(
-        `a notable difference is observed (${affP1 > affP2 ? p1 : p2} shows index ${Math.max(affP1, affP2).toFixed(1)} vs ${Math.min(affP1, affP2).toFixed(1)})`
-      );
-    } else if (totalAff >= 1.0) {
-      findings.push(`levels appear relatively similar (${p1}: ${affP1.toFixed(1)}, ${p2}: ${affP2.toFixed(1)})`);
+    if (addedKeys.has('kw_aff')) { // Prioritize if explicit affection is high
+        findings.push("se observa un uso frecuente de lenguaje que expresa afecto de manera explícita");
+        if (diff > 1.0 && totalAff > 1.5) { // If there's also a difference in this explicit affection
+            findings.push(affP1 > affP2 ? `${p1} parece expresar este afecto con un índice (${affP1.toFixed(1)}) mayor que ${p2} (${affP2.toFixed(1)})` : `${p2} parece expresar este afecto con un índice (${affP2.toFixed(1)}) mayor que ${p1} (${affP1.toFixed(1)})`);
+        }
+    } else if (totalAff > 1.5 && diff > (totalAff * 0.4)) { // Some notable affection and difference
+        findings.push( `el índice de afecto estimado sugiere una diferencia entre ${p1} (${affP1.toFixed(1)}) y ${p2} (${affP2.toFixed(1)})`);
+    } else if (totalAff < 0.8 && !addedKeys.has('kw_aff')) { // Low overall affection
+        findings.push("la expresión de afecto explícito a través de palabras clave parece ser poco frecuente en general");
     }
+  } else if (addedKeys.has('kw_aff')) { // For single or group chats if explicit affection found
+      findings.push("se observa un uso frecuente de lenguaje que expresa afecto de manera explícita");
   }
-  
-  if (addedKeys.has('kw_aff')) findings.push("frequent use of explicit affectionate language detected");
-  else if (Object.values(affectionAnalysis).every(a => a.normalized < 0.5)) {
-      findings.push("explicit affection expression appears low or infrequent");
-  }
+
 
   if (findings.length === 0) return "";
-  text += findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join(". ") + ".";
-  return text;
+  return `<p><strong>Afecto Estimado:</strong> ${findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join(". ")}.</p>`;
 }
 
 function generateToneProfile(addedKeys: Set<string>): string {
-  let text = "<strong>Overall Tone (AI-based):</strong> ";
   const findings_tone: string[] = [];
-  if (addedKeys.has('tone_v_pos')) findings_tone.push("predominantly positive");
-  else if (addedKeys.has('tone_m_pos')) findings_tone.push("mostly positive");
-  else if (addedKeys.has('tone_v_neg')) findings_tone.push("notable negative presence");
-  else if (addedKeys.has('tone_m_neg')) findings_tone.push("significant presence of negativity");
-  else if (addedKeys.has('tone_neu')) findings_tone.push("mostly neutral");
-  else findings_tone.push("no clear dominant tone detected by AI");
-
-  let combinedText = findings_tone.length > 0 ? findings_tone[0].charAt(0).toUpperCase() + findings_tone[0].slice(1) : "The AI-based tone assessment was inconclusive";
+  if (addedKeys.has('tone_v_pos')) findings_tone.push("el análisis de IA sugiere un ambiente predominantemente positivo en la conversación");
+  else if (addedKeys.has('tone_m_pos')) findings_tone.push("la IA percibe un tono generalmente positivo en los mensajes");
+  else if (addedKeys.has('tone_v_neg')) findings_tone.push("según la IA, hay una presencia notable de tono negativo, lo que podría indicar momentos de tensión o desacuerdo");
+  else if (addedKeys.has('tone_m_neg')) findings_tone.push("la IA identifica una corriente de negatividad en una porción significativa de los mensajes");
+  else if (addedKeys.has('tone_neu')) findings_tone.push("el tono general, según la IA, tiende a ser neutral o informativo");
+  else findings_tone.push("la IA no identificó un tono emocional claramente dominante en la conversación");
   
-  const findings_kw: string[] = [];
-  if (addedKeys.has('kw_pos') && addedKeys.has('kw_neg')) findings_kw.push("frequent use of both positive/polite and negative/conflict words was noted");
-  else if (addedKeys.has('kw_pos')) findings_kw.push("frequent use of language associated with positivity/politeness was noted");
-  else if (addedKeys.has('kw_neg')) findings_kw.push("frequent use of language associated with negativity/conflict was noted");
+  let combinedText = findings_tone.length > 0 ? findings_tone[0].charAt(0).toUpperCase() + findings_tone[0].slice(1) : "La evaluación del tono por IA no fue concluyente";
 
-  if(findings_kw.length > 0) {
-    combinedText += ". " + (findings_kw[0].charAt(0).toUpperCase() + findings_kw[0].slice(1));
-  }
-   combinedText += ".";
-
+  if (addedKeys.has('kw_pos') && !addedKeys.has('kw_neg')) combinedText += "; además, el uso de palabras amables o de cortesía parece ser frecuente";
+  else if (addedKeys.has('kw_neg') && !addedKeys.has('kw_pos')) combinedText += "; adicionalmente, se nota el uso de expresiones que podrían asociarse con conflicto o malestar";
+  else if (addedKeys.has('kw_pos') && addedKeys.has('kw_neg')) combinedText += "; curiosamente, se observa tanto el uso de lenguaje cortés como de expresiones potencialmente conflictivas";
+  
+  combinedText += ".";
 
   if ((addedKeys.has('tone_v_pos') || addedKeys.has('tone_m_pos')) && addedKeys.has('kw_neg')) {
-    combinedText += " (Note: Conflict-associated words observed despite a generally positive AI tone).";
+    combinedText += " (Es interesante notar que, aunque el tono general por IA es positivo, también se detectaron palabras que usualmente connotan conflicto).";
   } else if ((addedKeys.has('tone_v_neg') || addedKeys.has('tone_m_neg')) && addedKeys.has('kw_pos')) {
-    combinedText += " (Note: Positive/polite words observed despite a generally negative AI tone).";
+    combinedText += " (A pesar de un tono general negativo según la IA, se observan también expresiones de cortesía o positividad).";
   }
-  return text + combinedText;
+  return `<p><strong>Tono General:</strong> ${combinedText}</p>`;
 }
 
 function generateCommunicationFlowProfile(metrics: CalculatedMetrics, addedKeys: Set<string>): string {
-  let text = "<strong>Communication Flow & Responsiveness:</strong> ";
   const findings: string[] = [];
-  if (addedKeys.has('reciprocal')) findings.push("communication appears quite reciprocal");
-  else if (addedKeys.has('delayed_response')) findings.push("episodes of message bursts followed by delayed replies (>2h) were detected");
+  if (addedKeys.has('reciprocal')) findings.push("la dinámica general sugiere una comunicación bastante recíproca");
+  else if (addedKeys.has('delayed_response')) findings.push("se identificaron situaciones donde ráfagas de mensajes de un participante fueron seguidas por silencios prolongados (más de 2 horas) del otro, lo que podría indicar interrupciones en el flujo conversacional");
 
-  const slowResponses = metrics.global.participants.filter(p => metrics.participants[p]?.avgResponseTime?.averageMinutes > METRIC_FLAGS_RESP_TIME_SLOW_THRESHOLD_MIN).length;
-  const fastResponses = metrics.global.participants.filter(p => metrics.participants[p]?.avgResponseTime?.averageMinutes < METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN && metrics.participants[p]?.avgResponseTime?.count > 5).length;
+  const slowResponderAuthors = metrics.global.participants.filter(p => metrics.participants[p]?.avgResponseTime?.averageMinutes > METRIC_FLAGS_RESP_TIME_SLOW_THRESHOLD_MIN && metrics.participants[p]?.avgResponseTime?.count > 5);
+  const fastResponderAuthors = metrics.global.participants.filter(p => metrics.participants[p]?.avgResponseTime?.averageMinutes < METRIC_FLAGS_RESP_TIME_FAST_THRESHOLD_MIN && metrics.participants[p]?.avgResponseTime?.count > 5);
 
-  if (addedKeys.has('resp_fast') && !addedKeys.has('resp_slow') && metrics.global.participants.length > 0 && metrics.global.participants.length === fastResponses) findings.push("response times tend to be fast for all");
-  else if (addedKeys.has('resp_slow') && !addedKeys.has('resp_fast') && metrics.global.participants.length > 0 && metrics.global.participants.length === slowResponses) findings.push("median response times tend to be long for all");
-  else if (addedKeys.has('resp_slow') || addedKeys.has('resp_fast')) findings.push("response times vary among participants or situations");
-  else findings.push("response times are variable");
-
+  if (fastResponderAuthors.length === metrics.global.participants.length && metrics.global.participants.length > 0) {
+    findings.push("generalmente, todos los participantes tienden a responder con agilidad");
+  } else if (slowResponderAuthors.length === metrics.global.participants.length && metrics.global.participants.length > 0) {
+     findings.push("parece haber una tendencia generalizada a tiempos de respuesta extensos por parte de todos");
+  } else {
+    if (fastResponderAuthors.length > 0) findings.push(`algunos participantes, como ${fastResponderAuthors.join(", ")}, tienden a responder rápidamente`);
+    if (slowResponderAuthors.length > 0) findings.push(`${slowResponderAuthors.length > 0 && fastResponderAuthors.length > 0 ? "mientras que otros" : "algunos participantes,"} como ${slowResponderAuthors.join(", ")}, pueden tomarse más tiempo para responder`);
+  }
+  
   if (findings.length === 0) return "";
-  text += findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join(" and ") + ".";
-  return text;
+  return `<p><strong>Fluidez y Respuesta:</strong> ${findings.map((s, i) => i === 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s).join("; ")}.</p>`;
 }
 
 /**
@@ -298,43 +292,32 @@ export function generateFinalInterpretation(
   const { positivePoints, attentionPoints, addedKeys } = collectAndCleanFlags(analysisFlags);
   
   const summaryElements: string[] = [];
-  summaryElements.push("<strong>Detailed Interpretation:</strong>");
+  // Title added by the calling component or as static text in UI
+  // summaryElements.push("<strong>Interpretación Detallada:</strong>"); 
 
-  if (metrics.global.participants.length >= 1) { // Allow profiles if at least one participant
-    if (metrics.global.participants.length === 1 || metrics.global.participants.length === 2) {
-      const balanceProfile = generateBalanceProfile(addedKeys); // Doesn't need metrics
-      if (balanceProfile) summaryElements.push(balanceProfile);
+  if (metrics.global.participants.length > 0) {
+      const balanceProfile = generateBalanceProfile(addedKeys);
+      if (balanceProfile.length > "<p><strong>Balance y Participación:</strong> ".length + 3) summaryElements.push(balanceProfile);
       
       const affectionProfile = generateAffectionProfile(affectionAnalysis, metrics.global.participants, addedKeys);
-      if (affectionProfile) summaryElements.push(affectionProfile);
-    } else { // For groups > 2
-       summaryElements.push(
-        "<p><strong>Balance & Affection:</strong> Detailed balance and affection comparison primarily applies to 2-person chats. " +
-        "For groups, consider individual participation and overall tone.</p>"
-      );
-    }
-  } else { // No participants found
-      summaryElements.push(
-        "<p><strong>Balance & Affection:</strong> No participant data found for detailed comparison.</p>"
-      );
+      if (affectionProfile.length > "<p><strong>Afecto Estimado:</strong> ".length + 3) summaryElements.push(affectionProfile);
+  } else {
+      summaryElements.push("<p>No se encontraron datos de participantes para generar perfiles detallados de balance o afecto.</p>");
   }
-
 
   const toneProfile = generateToneProfile(addedKeys);
-  if (toneProfile) summaryElements.push(toneProfile);
+  if (toneProfile.length > "<p><strong>Tono General:</strong> ".length + 3) summaryElements.push(toneProfile);
 
   const flowProfile = generateCommunicationFlowProfile(metrics, addedKeys);
-  if (flowProfile) summaryElements.push(flowProfile);
+  if (flowProfile.length > "<p><strong>Fluidez y Respuesta:</strong> ".length + 3) summaryElements.push(flowProfile);
 
   let summaryText: string;
-  if (summaryElements.length <= 1 && positivePoints.length === 0 && attentionPoints.length === 0) {
-    summaryText = "<p>Not enough specific patterns were detected to generate a detailed interpretation summary. Please review the general metrics.</p>";
-  } else if (summaryElements.length <= 1) { // Only title is present
-      summaryText = "<p>Review the observed positive patterns and points for reflection for insights.</p>";
-  }
-  else {
-    const title = summaryElements.shift() || "";
-    summaryText = title + "<br>" + summaryElements.map(el => el.startsWith("<p>") ? el : `<p>${el}</p>`).join("");
+  if (summaryElements.length === 0 && positivePoints.length === 0 && attentionPoints.length === 0) {
+    summaryText = "<p>No se detectaron patrones específicos o métricas destacadas para generar un resumen detallado. Revisa las métricas y patrones individuales si se identificaron.</p>";
+  } else if (summaryElements.length === 0) {
+      summaryText = "<p>Revisa los patrones positivos observados y los puntos de reflexión para obtener más detalles sobre la dinámica de la conversación.</p>";
+  } else {
+    summaryText = summaryElements.join(""); // Elements already include <p> tags
   }
 
   return {
