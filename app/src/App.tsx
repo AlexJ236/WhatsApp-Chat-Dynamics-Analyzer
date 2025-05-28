@@ -1,35 +1,52 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import AppLayout from './components/Layout/AppLayout';
+import FileUpload from './components/FileUpload/FileUpload';
+import { useState } from 'react';
+
+// Importa los servicios de análisis que usaremos después
+// import { parseChatExport } from './services/chatParser';
+// import { calculateChatMetrics } from './services/metricsCalculator';
+// import { analyzeChatSentimentAndAffection, loadSentimentModel } from './services/sentimentAnalyzer';
+// import { generateMetricBasedFlags, generateFinalInterpretation } from './services/interpretationGenerator';
+// import type { FullAnalysisResult, AnalysisFlags } from './types';
+
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [rawChatText, setRawChatText] = useState<string | null>(null);
+  const [chatFileName, setChatFileName] = useState<string | null>(null);
+
+  // Estado para mensajes de carga/proceso globales
+  const [appStatusMessage, setAppStatusMessage] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  const handleFileProcessed = (chatText: string, fileName: string) => {
+    console.log(`[App] Archivo procesado: ${fileName}, tamaño: ${chatText.length} caracteres.`);
+    setRawChatText(chatText);
+    setChatFileName(fileName);
+    setAppStatusMessage(`Listo para analizar "${fileName}".`);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <AppLayout>
+      <FileUpload 
+        onFileSuccessfullyProcessed={handleFileProcessed} 
+        />
+
+      <hr className="divider" /> 
+
+      {rawChatText && chatFileName && (
+        <div style={{ padding: '2rem', textAlign: 'center' }}>
+          <h3>Chat "{chatFileName}" cargado.</h3>
+          <p>El análisis se mostrará aquí.</p>
+        </div>
+      )}
+
+      {appStatusMessage && !isProcessing && (
+         <p className="loading-status" style={{textAlign: 'center', marginTop: '1rem'}}>
+            {appStatusMessage}
+         </p>
+      )}
+    </AppLayout>
+  );
 }
 
-export default App
+export default App;
