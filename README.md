@@ -97,7 +97,7 @@ To run this project locally, follow these steps:
 1.  **Clone the repository:**
     ```bash
     git clone [https://github.com/AlexJ236/WhatsApp-Chat-Dynamics-Analyzer](https://github.com/AlexJ236/WhatsApp-Chat-Dynamics-Analyzer)
-    cd whats
+    cd WhatsApp-Chat-Dynamics-Analyzer
     ```
 
 2.  **Install dependencies:**
