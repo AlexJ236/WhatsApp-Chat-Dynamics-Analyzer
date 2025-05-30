@@ -1,6 +1,6 @@
 ﻿# ¿Me conviene? - WhatsApp Chat Dynamics Analyzer
 
-**Live Application:** [https://meconviene.netlify.app/](https://meconviene.netlify.app/)
+**Live Application:** https://meconviene.netlify.app/
 
 "¿Me conviene?" is a web-based tool designed to analyze exported WhatsApp chat `.txt` or `.zip` files. It provides users with metrics, visualizations, and qualitative insights into their communication dynamics, helping them reflect on their interactions. A key feature is its commitment to privacy: all processing is done 100% locally in the user's browser, meaning no chat data is ever uploaded to any server.
 
@@ -46,7 +46,7 @@ The application interface is primarily in **Spanish**.
 ## Project Structure
 
 The project is organized with the Vite application root directly in the main repository directory (`whats/`).
-
+```
 whats/
 ├── public/               # Static assets (favicon, _redirects for Netlify)
 ├── src/                  # Main application source code
@@ -82,7 +82,7 @@ whats/
 ├── tsconfig.node.json    # Node-specific TypeScript configuration (for Vite config)
 ├── vite.config.ts        # Vite configuration
 └── README.md             # This file
-
+```
 
 ## Getting Started (Local Development)
 
