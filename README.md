@@ -45,9 +45,9 @@ The application interface is primarily in **Spanish**.
 
 ## Project Structure
 
-The project is organized with the Vite application root directly in the main repository directory (`whats/`).
+The project is organized with the Vite application root directly in the main repository directory (`WhatsApp-Chat-Dynamics-Analyzer/`).
 ```
-whats/
+WhatsApp-Chat-Dynamics-Analyzer/
 ├── public/               # Static assets (favicon, _redirects for Netlify)
 ├── src/                  # Main application source code
 │   ├── assets/           # Images, fonts, etc. (if any)
@@ -96,12 +96,12 @@ To run this project locally, follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/AlexJ236/whats.git](https://github.com/AlexJ236/whats.git) # Replace with your actual repo URL if different
+    git clone [https://github.com/AlexJ236/WhatsApp-Chat-Dynamics-Analyzer](https://github.com/AlexJ236/WhatsApp-Chat-Dynamics-Analyzer)
     cd whats
     ```
 
 2.  **Install dependencies:**
-    (Ensure you are in the `whats/` directory, which is now the project root)
+    (Ensure you are in the `WhatsApp-Chat-Dynamics-Analyzer/` directory, which is now the project root)
     ```bash
     npm install
     ```
